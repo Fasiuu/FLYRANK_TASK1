@@ -3,7 +3,12 @@
 One row = one content item at one decision date T.
   features : built ONLY from days in (T-90, T]          -> knowable at T
   label    : built ONLY from days in (T, T+30]           -> the future month
-  declined = impressions in (T, T+30] < 0.8 x the item's average 30-day impressions over (T-60, T]
+  declined = the page's next-30-day impressions, relative to its own prior 60-day monthly average,
+             fall more than 20% BELOW what its own client (site) did over the same month.
+             (page_ratio < 0.8 x client_ratio). Site-wide swings - algorithm updates, seasonality,
+             tracking changes - move every page of a site together and are not something a page
+             refresh can fix, so they are removed from the label. `declined_abs` keeps the plain
+             >20%-drop version for comparison.
 
 Everything heavy runs inside DuckDB against the hosted Parquet release; pandas only ever sees
 the per-item aggregate (tens of thousands of rows, not millions).
@@ -26,6 +31,7 @@ DEPLOY_DATE = "2026-06-30"   # last day of the panel: features only, the label m
 PANEL_END = "2026-06-30"
 
 MIN_IMP_60D = 200          # population floor: >= 200 impressions over (T-60, T]
+MIN_AGE_DAYS = 90          # page must exist for the whole 90-day feature window
 DECLINE_RATIO = 0.8        # >20% drop vs the prior 60-day monthly average
 
 FEATURES = [
@@ -167,20 +173,54 @@ def engineer(df):
     df["updated_after_T"] = (pd.to_datetime(df["content_updated_date"], errors="coerce") > T).astype(int)
     # label: observed outcome in the following 30 days
     df["baseline_monthly_imp"] = (df["imp_last30"] + df["imp_prev30"]) / 2
-    df["declined"] = (df["imp_next30"] < DECLINE_RATIO * df["baseline_monthly_imp"]).astype(int)
+    df["declined_abs"] = (df["imp_next30"] < DECLINE_RATIO * df["baseline_monthly_imp"]).astype(int)
     df["vanished_next30"] = (df["rows_next30"] == 0).astype(int)
     beyond = T + pd.Timedelta(days=30) > pd.Timestamp(PANEL_END)
-    df.loc[beyond, ["declined", "imp_next30", "vanished_next30"]] = np.nan
+    df.loc[beyond, ["declined_abs", "imp_next30", "vanished_next30"]] = np.nan
     return df
 
 
 def model_frame(panel):
-    """Rows used for modelling: full feature history and every feature present."""
+    """Rows used for modelling: full feature history, page old enough, every feature present,
+    plus the site-relative label."""
+    import numpy as np
     m = panel[panel["full_history"]].copy()
     m = m.dropna(subset=["pos_last30", "content_age_days"])
+    m = m[m["content_age_days"] >= MIN_AGE_DAYS]
     m["pos_change"] = m["pos_change"].fillna(0)        # no position in the prior month -> no change measurable
     m["pos_volatility"] = m["pos_volatility"].fillna(0)  # a single visible day has no spread
+    g = m.groupby(["decision_date", "client_hash_id"])
+    m["client_ratio"] = g["imp_next30"].transform("sum") / g["baseline_monthly_imp"].transform("sum")
+    m["page_ratio"] = m["imp_next30"] / m["baseline_monthly_imp"].clip(lower=1)
+    m["declined"] = (m["page_ratio"] < DECLINE_RATIO * m["client_ratio"]).astype(float)
+    m.loc[m["imp_next30"].isna(), ["declined", "client_ratio", "page_ratio"]] = np.nan
     return m
+
+
+def client_fold(client_hash_id, k=4):
+    """Fixed, data-independent fold id per client (hash of the pseudonymous id)."""
+    import hashlib
+    return int(hashlib.md5(f"{SEED}:{client_hash_id}".encode()).hexdigest(), 16) % k
+
+
+def grouped_forward_scores(df, train_dates, test_date, make_model, features, k=4):
+    """Client-grouped AND time-forward out-of-fold scores: for each fold of clients, train on the
+    OTHER clients' rows at train_dates and score this fold's rows at test_date. Every test row is
+    scored by a model that never saw its client, nor its outcome month."""
+    import numpy as np
+    test = df[df["decision_date"] == test_date].copy()
+    test["fold"] = test["client_hash_id"].map(lambda c: client_fold(c, k))
+    test["score"] = np.nan
+    tr_all = df[df["decision_date"].isin(train_dates)]
+    tr_fold = tr_all["client_hash_id"].map(lambda c: client_fold(c, k))
+    for f in range(k):
+        te_idx = test.index[test["fold"] == f]
+        if len(te_idx) == 0:
+            continue
+        tr = tr_all[tr_fold != f]
+        mdl = make_model().fit(tr[features], tr["declined"].astype(int))
+        test.loc[te_idx, "score"] = mdl.predict_proba(test.loc[te_idx, features])[:, 1]
+    return test
 
 
 def is_holdout_client(client_hash_id):
