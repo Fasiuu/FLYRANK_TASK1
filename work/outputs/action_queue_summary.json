@@ -1,0 +1,45 @@
+{
+  "decision_date": "2026-06-30",
+  "pages": 87664,
+  "sites": 39,
+  "top10_per_site_action_mix": {
+    "REVIEW": 166,
+    "REVIEW NOW": 102,
+    "MONITOR": 92
+  },
+  "top10_archetypes": {
+    "quiet slide": 110,
+    "double slide": 102,
+    "spike-propped": 90,
+    "diffuse risk": 56,
+    "patchy": 2
+  },
+  "top10_reason_codes": {
+    "sliding_impressions": 302,
+    "aging_page": 176,
+    "position_slipping": 141,
+    "patchy_visibility": 103,
+    "one_day_spike": 90,
+    "none": 16
+  },
+  "drift_psi": {
+    "log_imp_last30": 0.032,
+    "log_imp_prev30": 0.018,
+    "log_imp_prev60_90": 0.003,
+    "imp_momentum": 0.074,
+    "imp_momentum_long": 0.061,
+    "log_clicks_last30": 0.011,
+    "ctr_last30": 0.04,
+    "pos_last30": 0.055,
+    "pos_change": 0.522,
+    "pos_volatility": 0.017,
+    "days_with_imp_last30": 0.026,
+    "spike_share": 0.064,
+    "weekend_share": 1.288,
+    "content_age_days": 0.083,
+    "log_word_count": 0.023,
+    "has_word_count": 0.0,
+    "log_search_volume": 0.002,
+    "has_keyword_data": 0.0
+  }
+}
