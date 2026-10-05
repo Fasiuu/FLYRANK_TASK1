@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which pages will fall behind next month? A site-relative decline-risk ranker</title>
+<meta name="description" content="A decline-risk ranker for content pages, built on the FlyRank pseudonymised search warehouse, validated client-grouped and time-forward on a sealed month.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb; --page: #f6f5f1; --ink: #0b0b0b; --ink-2: #52514e; --ink-3: #78776f; --rule: #e2e0d8;
+  --accent: #1c5cab; --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --grid: #ebe9e2; --ref: #9a988f; --code: #efede6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19; --page: #121211; --ink: #ffffff; --ink-2: #c3c2b7; --ink-3: #94938a; --rule: #34332f;
+    --accent: #86b6ef; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --grid: #2b2a27; --ref: #77766e; --code: #262624;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19; --page: #121211; --ink: #ffffff; --ink-2: #c3c2b7; --ink-3: #94938a; --rule: #34332f;
+  --accent: #86b6ef; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --grid: #2b2a27; --ref: #77766e; --code: #262624;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 17px/1.65 "Source Serif 4", Georgia, serif; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 48px 16px 80px; }
+header .kicker { font: 500 12px/1.4 "IBM Plex Sans", sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+h1 { font-weight: 600; font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 10px 0 14px; letter-spacing: -.01em; }
+.byline { font: 14px/1.5 "IBM Plex Sans", sans-serif; color: var(--ink-2); }
+.byline a { color: var(--ink-2); }
+h2 { font: 600 13px/1.4 "IBM Plex Sans", sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--accent);
+     margin: 56px 0 10px; padding-top: 18px; border-top: 1px solid var(--rule); }
+h3 { font-weight: 600; font-size: 20px; margin: 28px 0 6px; }
+p, li { max-width: 68ch; }
+a { color: var(--accent); }
+.abstract { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 22px; margin-top: 28px; }
+.abstract p { margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--rule);
+         border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; margin: 24px 0; }
+.stat { background: var(--surface); padding: 14px 16px; }
+.stat b { display: block; font: 600 26px/1.1 "IBM Plex Sans", sans-serif; font-variant-numeric: tabular-nums; }
+.stat span { font: 13px/1.4 "IBM Plex Sans", sans-serif; color: var(--ink-2); }
+figure { margin: 26px 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px 16px 12px; }
+figcaption { font: 14px/1.5 "IBM Plex Sans", sans-serif; color: var(--ink-2); margin-top: 6px; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.chart { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 13px/1.3 "IBM Plex Sans", sans-serif; color: var(--ink-2); margin: 0 0 8px 4px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend i.dash { background: repeating-linear-gradient(90deg, var(--ref) 0 4px, transparent 4px 7px); }
+.chart .grid { stroke: var(--grid); stroke-width: 1; }
+.chart .ref { stroke: var(--ref); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  .chart .tick { font: 13px "IBM Plex Sans", sans-serif; fill: var(--ink-2); }
+.chart .axis { font: 13px "IBM Plex Sans", sans-serif; fill: var(--ink-2); }
+.chart .lab { font: 500 13px "IBM Plex Sans", sans-serif; fill: var(--ink); }
+.chart .muted { fill: var(--ink-3); }
+.chart .pt:hover circle:last-of-type, .chart .pt:hover path, .chart .pt:hover rect { opacity: .8; }
+table { width: 100%; border-collapse: collapse; font: 14px/1.4 "IBM Plex Sans", sans-serif; font-variant-numeric: tabular-nums; margin: 18px 0; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--rule); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 600; color: var(--ink-2); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+tr.win td { font-weight: 600; }
+.tablewrap { overflow-x: auto; }
+code { font: 14px "IBM Plex Mono", monospace; background: var(--code); padding: 1px 5px; border-radius: 3px; }
+.note { font: 14px/1.55 "IBM Plex Sans", sans-serif; color: var(--ink-2); border-left: 3px solid var(--rule); padding-left: 14px; }
+footer { margin-top: 64px; font: 13px/1.5 "IBM Plex Sans", sans-serif; color: var(--ink-3); }
+.toggle { position: fixed; top: 12px; right: 12px; font: 12px "IBM Plex Sans", sans-serif; background: var(--surface); color: var(--ink-2);
+          border: 1px solid var(--rule); border-radius: 20px; padding: 5px 11px; cursor: pointer; }
+</style>
+</head>
+<body>
+<button class="toggle" id="t" aria-label="Toggle dark mode">theme</button>
+<div class="wrap">
+<header>
+  <div class="kicker">FlyRank ML internship · capstone · applied search intelligence</div>
+  <h1>Which pages will fall behind next month?</h1>
+  <div class="byline">Fasih &middot; October 2026 &middot; <a href="https://github.com/Fasiuu/FLYRANK_TASK1">code and notebooks</a></div>
+</header>
+
+<h2>Abstract</h2>
+<div class="abstract"><p>FlyRank's product helps content teams decide which pages to refresh, using hand-tuned rules such as a health score. In practice a team usually notices a falling page only after a monthly report shows the loss. I asked whether signals available on decision day can tell a reviewer which pages to open first. Using the pseudonymised FlyRank search warehouse (about 219,935 page-month rows across up to 37 clients, March to June 2026), I defined the outcome as a page falling more than 20% further than its own site in the following month, after finding that a plain "impressions dropped 20%" label mostly measured whole sites losing traffic. A gradient-boosting ranker built on 18 decision-day signals was compared with a transparent five-sign rule, using a split that is both client-grouped and time-forward, with June 2026 kept sealed until the end. On June and on clients it never saw, the model ordered pages with ROC-AUC 0.702 against 0.602 for the rule, and each site's top-10 flags were right 0.89 of the time against 0.75 for the rule and 0.52 by chance. The output is a per-site review queue with reason codes: decision support for where to look, not a claim about what fixing a page will do.</p></div>
+
+<div class="stats">
+  <div class="stat"><b>0.702</b><span>ROC-AUC, sealed June test (rule: 0.602)</span></div>
+  <div class="stat"><b>0.89</b><span>per-site top-10 precision (chance: 0.52)</span></div>
+  <div class="stat"><b>37</b><span>unseen clients in the sealed test (26 with 30+ pages)</span></div>
+</div>
+
+<h2>1 · The problem</h2>
+<p>This comes straight from FlyRank's refresh workflow. The product already surfaces pages to fix with hand-written scores (health score, priority score, refresh flags), and the internship release deliberately leaves those out so the signal has to be found in raw search data. Picture a reviewer responsible for a few hundred pages on one site. Every month some of those pages lose search visibility. By the time a dashboard shows the drop, the traffic is already gone, and there's no time to read every page every month. The question this project answers is narrow on purpose: <em>which pages on this site should I open first?</em></p>
+<p>A wrong answer costs in two ways. A false alarm wastes a review slot. A miss lets a page keep sliding for weeks. Because reviewers work down a short list, I care most about how good the top of each site's list is, not about getting every page right.</p>
+
+<h2>2 · Data</h2>
+<p>The FlyRank internship warehouse (build <code>v20260703</code>) is a pseudonymised export of daily Google Search Console data: 78.8 million page-day rows across 104 client accounts (55 of them active in March 2026), running to the end of June 2026. I read it in place with DuckDB and only pulled per-page aggregates into memory.</p>
+<p>I built four snapshots, on the last day of March, April, May and June 2026. For each one, features come from the 90 days before, and the outcome from the 30 days after. A page enters the population if it had at least 200 impressions in the prior 60 days, is at least 90 days old, and belongs to a client whose Search Console feed covers the whole feature window. That leaves roughly 63,000 to 85,000 pages per snapshot from 25 to 37 clients.</p>
+<p><strong>Excluded on purpose:</strong> the query-level table (its fixed window overlaps the outcome months), the content "last updated" fields (they are stamped at export time, so they carry future information), GA4 engagement and AI-referral sessions (too little history and too sparse), and every identifier as a feature. Nothing on this page can identify a client, a domain, a URL or a query.</p>
+
+<h2>3 · Methodology</h2>
+<h3>The label, and why it changed</h3>
+<p>My first label was the obvious one: did the page's impressions fall more than 20% next month? Its rate climbed from 52% to 64% to 75% across three months, because whole sites were shrinking at the same time. The median site kept only 74% and then 64% of its prior traffic. A refresh can't fix an algorithm update or a tracking change that hits a whole site, so that label was mostly measuring the wrong thing.</p>
+<p>The final label compares each page with its own site: <strong>declined = the page's next-month impressions, relative to its own prior 60-day average, came in more than 20% below the same ratio for its whole site.</strong> That rate stays flat at about 50% every month.</p>
+<figure><div class="legend"><span><i style="background:var(--s2)"></i>plain &gt;20% drop</span><span><i style="background:var(--s1)"></i>fell behind own site</span></div><svg viewBox="0 0 600 320" role="img" aria-label="Label rate by outcome month" class="chart">
+<line x1="58" x2="576" y1="272.0" y2="272.0" class="grid"/>
+<text x="50" y="276.0" class="tick" text-anchor="end">0%</text>
+<line x1="58" x2="576" y1="221.2" y2="221.2" class="grid"/>
+<text x="50" y="225.2" class="tick" text-anchor="end">20%</text>
+<line x1="58" x2="576" y1="170.4" y2="170.4" class="grid"/>
+<text x="50" y="174.4" class="tick" text-anchor="end">40%</text>
+<line x1="58" x2="576" y1="119.6" y2="119.6" class="grid"/>
+<text x="50" y="123.6" class="tick" text-anchor="end">60%</text>
+<line x1="58" x2="576" y1="68.8" y2="68.8" class="grid"/>
+<text x="50" y="72.8" class="tick" text-anchor="end">80%</text>
+<line x1="58" x2="576" y1="18.0" y2="18.0" class="grid"/>
+<text x="50" y="22.0" class="tick" text-anchor="end">100%</text>
+<text x="58.0" y="290" class="tick" text-anchor="middle">April</text>
+<text x="317.0" y="290" class="tick" text-anchor="middle">May</text>
+<text x="576.0" y="290" class="tick" text-anchor="middle">June</text>
+<text x="317" y="314" class="axis" text-anchor="middle">outcome month</text>
+<text x="14" y="145" class="axis" text-anchor="middle" transform="rotate(-90 14 145)">share of pages labelled &quot;declined&quot;</text>
+<polyline points="58.0,140.1 317.0,110.1 576.0,82.3" fill="none" stroke="var(--s2)" stroke-width="2"  stroke-linejoin="round"/>
+<g class="pt"><circle cx="58.0" cy="140.1" r="9" fill="transparent"/><circle cx="58.0" cy="140.1" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>plain &gt;20% drop at 0: 52%</title></g>
+<g class="pt"><circle cx="317.0" cy="110.1" r="9" fill="transparent"/><circle cx="317.0" cy="110.1" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>plain &gt;20% drop at 1: 64%</title></g>
+<g class="pt"><circle cx="576.0" cy="82.3" r="9" fill="transparent"/><circle cx="576.0" cy="82.3" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>plain &gt;20% drop at 2: 75%</title></g>
+<polyline points="58.0,146.7 317.0,148.9 576.0,140.3" fill="none" stroke="var(--s1)" stroke-width="2"  stroke-linejoin="round"/>
+<g class="pt"><circle cx="58.0" cy="146.7" r="9" fill="transparent"/><circle cx="58.0" cy="146.7" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>fell behind own site at 0: 49%</title></g>
+<g class="pt"><circle cx="317.0" cy="148.9" r="9" fill="transparent"/><circle cx="317.0" cy="148.9" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>fell behind own site at 1: 48%</title></g>
+<g class="pt"><circle cx="576.0" cy="140.3" r="9" fill="transparent"/><circle cx="576.0" cy="140.3" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>fell behind own site at 2: 52%</title></g>
+</svg>
+<figcaption><b>The plain label drifts with the whole portfolio; the site-relative one doesn't.</b> Share of pages labelled "declined" under each definition, by outcome month.</figcaption></figure>
+
+<h3>Signals, baseline, model</h3>
+<p><strong>Features (18):</strong> impressions in three 30-day blocks, two momentum ratios, clicks and CTR, impression-weighted average position with its change and daily volatility, days visible, the share of last month carried by its single biggest day, weekend share, page age, word count and keyword volume (with missing-data flags).</p>
+<p><strong>Baseline:</strong> a hand-written rule with one point per warning sign: impressions sliding, position slipping, a one-day spike, age over 270 days (the "decay cliff" in FlyRank's March 2026 report), and patchy visibility. It was written before any model and kept frozen.</p>
+<p><strong>Model:</strong> logistic regression, random forest and histogram gradient boosting were compared on the development month. Gradient boosting won on the metrics chosen in advance (top-of-queue precision) and was frozen before June was opened.</p>
+<h3>Validation</h3>
+<p>Every score in this paper comes from a model that has never seen the client it scores, nor the month it is judged on. Clients are hashed into four fixed folds, and each fold is scored by a model trained only on the <em>other</em> folds' <em>earlier</em> snapshots. Development used March → April; the sealed test trained on March and April and was judged on June outcomes, once. Leakage checks included adding an outcome-month feature (the score jumps, so the harness works), the export-time edit flag (excluded), the query-table overlap (excluded) and a population filter that uses no outcome information.</p>
+
+<h2>4 · Results</h2>
+<div class="tablewrap"><table>
+<tr><th>Sealed June test, unseen clients</th><th>ROC-AUC</th><th>avg precision</th><th>precision@500</th><th>per-site top-10</th></tr>
+<tr><td>random queue</td><td>0.500</td><td>0.52</td><td>0.52</td><td>0.52</td></tr>
+<tr><td>rule baseline</td><td>0.602</td><td>0.605</td><td>0.83</td><td>0.75</td></tr>
+<tr><td>logistic regression</td><td>0.701</td><td>0.710</td><td>0.95</td><td>0.91</td></tr>
+<tr class="win"><td>gradient boosting (final)</td><td>0.702</td><td>0.713</td><td>0.96</td><td>0.89</td></tr>
+</table></div>
+<p class="note">Base rate on the sealed month: 0.52. The development month showed the same ordering (AUC 0.731 vs 0.614). A random 75/25 row split, which lets the model see every client and month, reports AUC 0.798. The gap between that and the honest number is how much a careless split would have flattered the result.</p>
+<figure><div class="legend"><span><i style="background:var(--s1)"></i>gradient boosting</span><span><i style="background:var(--s3)"></i>logistic regression</span><span><i style="background:var(--s2)"></i>rule baseline</span><span><i class="dash"></i>random</span></div><svg viewBox="0 0 600 320" role="img" aria-label="Precision at K on the sealed June test" class="chart">
+<line x1="58" x2="576" y1="272.0" y2="272.0" class="grid"/>
+<text x="50" y="276.0" class="tick" text-anchor="end">0%</text>
+<line x1="58" x2="576" y1="221.2" y2="221.2" class="grid"/>
+<text x="50" y="225.2" class="tick" text-anchor="end">20%</text>
+<line x1="58" x2="576" y1="170.4" y2="170.4" class="grid"/>
+<text x="50" y="174.4" class="tick" text-anchor="end">40%</text>
+<line x1="58" x2="576" y1="119.6" y2="119.6" class="grid"/>
+<text x="50" y="123.6" class="tick" text-anchor="end">60%</text>
+<line x1="58" x2="576" y1="68.8" y2="68.8" class="grid"/>
+<text x="50" y="72.8" class="tick" text-anchor="end">80%</text>
+<line x1="58" x2="576" y1="18.0" y2="18.0" class="grid"/>
+<text x="50" y="22.0" class="tick" text-anchor="end">100%</text>
+<text x="58.0" y="290" class="tick" text-anchor="middle">10</text>
+<text x="115.8" y="290" class="tick" text-anchor="middle">20</text>
+<text x="192.1" y="290" class="tick" text-anchor="middle">50</text>
+<text x="249.9" y="290" class="tick" text-anchor="middle">100</text>
+<text x="307.7" y="290" class="tick" text-anchor="middle">200</text>
+<text x="384.1" y="290" class="tick" text-anchor="middle">500</text>
+<text x="441.9" y="290" class="tick" text-anchor="middle">1000</text>
+<text x="499.6" y="290" class="tick" text-anchor="middle">2000</text>
+<text x="576.0" y="290" class="tick" text-anchor="middle">5000</text>
+<text x="317" y="314" class="axis" text-anchor="middle">queue size K (log scale)</text>
+<text x="14" y="145" class="axis" text-anchor="middle" transform="rotate(-90 14 145)">precision@K</text>
+<line x1="58" x2="576" y1="140.3" y2="140.3" class="ref"/>
+<polyline points="58.0,18.0 115.8,30.7 192.1,23.1 249.9,25.6 307.7,24.3 384.1,28.7 441.9,30.7 499.6,36.9 576.0,52.1" fill="none" stroke="var(--s1)" stroke-width="2"  stroke-linejoin="round"/>
+<g class="pt"><circle cx="58.0" cy="18.0" r="9" fill="transparent"/><circle cx="58.0" cy="18.0" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>gradient boosting at 10: 100%</title></g>
+<g class="pt"><circle cx="115.8" cy="30.7" r="9" fill="transparent"/><circle cx="115.8" cy="30.7" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>gradient boosting at 20: 95%</title></g>
+<g class="pt"><circle cx="192.1" cy="23.1" r="9" fill="transparent"/><circle cx="192.1" cy="23.1" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>gradient boosting at 50: 98%</title></g>
+<g class="pt"><circle cx="249.9" cy="25.6" r="9" fill="transparent"/><circle cx="249.9" cy="25.6" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>gradient boosting at 100: 97%</title></g>
+<g class="pt"><circle cx="307.7" cy="24.3" r="9" fill="transparent"/><circle cx="307.7" cy="24.3" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>gradient boosting at 200: 98%</title></g>
+<g class="pt"><circle cx="384.1" cy="28.7" r="9" fill="transparent"/><circle cx="384.1" cy="28.7" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>gradient boosting at 500: 96%</title></g>
+<g class="pt"><circle cx="441.9" cy="30.7" r="9" fill="transparent"/><circle cx="441.9" cy="30.7" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>gradient boosting at 1000: 95%</title></g>
+<g class="pt"><circle cx="499.6" cy="36.9" r="9" fill="transparent"/><circle cx="499.6" cy="36.9" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>gradient boosting at 2000: 93%</title></g>
+<g class="pt"><circle cx="576.0" cy="52.1" r="9" fill="transparent"/><circle cx="576.0" cy="52.1" r="4" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/><title>gradient boosting at 5000: 87%</title></g>
+<polyline points="58.0,18.0 115.8,18.0 192.1,28.2 249.9,30.7 307.7,25.6 384.1,30.2 441.9,34.5 499.6,38.8 576.0,56.5" fill="none" stroke="var(--s3)" stroke-width="2"  stroke-linejoin="round"/>
+<g class="pt"><circle cx="58.0" cy="18.0" r="9" fill="transparent"/><circle cx="58.0" cy="18.0" r="4" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/><title>logistic regression at 10: 100%</title></g>
+<g class="pt"><circle cx="115.8" cy="18.0" r="9" fill="transparent"/><circle cx="115.8" cy="18.0" r="4" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/><title>logistic regression at 20: 100%</title></g>
+<g class="pt"><circle cx="192.1" cy="28.2" r="9" fill="transparent"/><circle cx="192.1" cy="28.2" r="4" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/><title>logistic regression at 50: 96%</title></g>
+<g class="pt"><circle cx="249.9" cy="30.7" r="9" fill="transparent"/><circle cx="249.9" cy="30.7" r="4" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/><title>logistic regression at 100: 95%</title></g>
+<g class="pt"><circle cx="307.7" cy="25.6" r="9" fill="transparent"/><circle cx="307.7" cy="25.6" r="4" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/><title>logistic regression at 200: 97%</title></g>
+<g class="pt"><circle cx="384.1" cy="30.2" r="9" fill="transparent"/><circle cx="384.1" cy="30.2" r="4" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/><title>logistic regression at 500: 95%</title></g>
+<g class="pt"><circle cx="441.9" cy="34.5" r="9" fill="transparent"/><circle cx="441.9" cy="34.5" r="4" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/><title>logistic regression at 1000: 94%</title></g>
+<g class="pt"><circle cx="499.6" cy="38.8" r="9" fill="transparent"/><circle cx="499.6" cy="38.8" r="4" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/><title>logistic regression at 2000: 92%</title></g>
+<g class="pt"><circle cx="576.0" cy="56.5" r="9" fill="transparent"/><circle cx="576.0" cy="56.5" r="4" fill="var(--s3)" stroke="var(--surface)" stroke-width="2"/><title>logistic regression at 5000: 85%</title></g>
+<polyline points="58.0,94.2 115.8,68.8 192.1,53.6 249.9,91.7 307.7,82.8 384.1,62.2 441.9,85.6 499.6,80.9 576.0,105.7" fill="none" stroke="var(--s2)" stroke-width="2"  stroke-linejoin="round"/>
+<g class="pt"><circle cx="58.0" cy="94.2" r="9" fill="transparent"/><circle cx="58.0" cy="94.2" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>rule baseline at 10: 70%</title></g>
+<g class="pt"><circle cx="115.8" cy="68.8" r="9" fill="transparent"/><circle cx="115.8" cy="68.8" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>rule baseline at 20: 80%</title></g>
+<g class="pt"><circle cx="192.1" cy="53.6" r="9" fill="transparent"/><circle cx="192.1" cy="53.6" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>rule baseline at 50: 86%</title></g>
+<g class="pt"><circle cx="249.9" cy="91.7" r="9" fill="transparent"/><circle cx="249.9" cy="91.7" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>rule baseline at 100: 71%</title></g>
+<g class="pt"><circle cx="307.7" cy="82.8" r="9" fill="transparent"/><circle cx="307.7" cy="82.8" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>rule baseline at 200: 74%</title></g>
+<g class="pt"><circle cx="384.1" cy="62.2" r="9" fill="transparent"/><circle cx="384.1" cy="62.2" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>rule baseline at 500: 83%</title></g>
+<g class="pt"><circle cx="441.9" cy="85.6" r="9" fill="transparent"/><circle cx="441.9" cy="85.6" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>rule baseline at 1000: 73%</title></g>
+<g class="pt"><circle cx="499.6" cy="80.9" r="9" fill="transparent"/><circle cx="499.6" cy="80.9" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>rule baseline at 2000: 75%</title></g>
+<g class="pt"><circle cx="576.0" cy="105.7" r="9" fill="transparent"/><circle cx="576.0" cy="105.7" r="4" fill="var(--s2)" stroke="var(--surface)" stroke-width="2"/><title>rule baseline at 5000: 65%</title></g>
+</svg>
+<figcaption><b>The model stays above the rule across queue sizes.</b> Precision of the first K pages in a pooled queue on the sealed month. The dashed line is what random picking gets.</figcaption></figure>
+
+<h3>What the model leans on</h3>
+<figure><svg viewBox="0 0 600 290" role="img" aria-label="Permutation importance" class="chart">
+<text x="200" y="27" class="tick" text-anchor="end">momentum, 1 month</text>
+<g class="pt"><rect x="210" y="15" width="278.3" height="18" rx="4" fill="var(--s1)"/><title>momentum, 1 month: 0.1351</title></g>
+<text x="494.3" y="28" class="lab">0.135</text>
+<text x="200" y="57" class="tick" text-anchor="end">position volatility</text>
+<g class="pt"><rect x="210" y="45" width="101.7" height="18" rx="4" fill="var(--s1)"/><title>position volatility: 0.0494</title></g>
+<text x="317.7" y="58" class="lab">0.049</text>
+<text x="200" y="87" class="tick" text-anchor="end">impressions 30-60d ago</text>
+<g class="pt"><rect x="210" y="75" width="51.5" height="18" rx="4" fill="var(--s1)"/><title>impressions 30-60d ago: 0.0250</title></g>
+<text x="267.5" y="88" class="lab">0.025</text>
+<text x="200" y="117" class="tick" text-anchor="end">average position</text>
+<g class="pt"><rect x="210" y="105" width="50.5" height="18" rx="4" fill="var(--s1)"/><title>average position: 0.0245</title></g>
+<text x="266.5" y="118" class="lab">0.025</text>
+<text x="200" y="147" class="tick" text-anchor="end">CTR</text>
+<g class="pt"><rect x="210" y="135" width="24.9" height="18" rx="4" fill="var(--s1)"/><title>CTR: 0.0121</title></g>
+<text x="240.9" y="148" class="lab">0.012</text>
+<text x="200" y="177" class="tick" text-anchor="end">days visible</text>
+<g class="pt"><rect x="210" y="165" width="21.0" height="18" rx="4" fill="var(--s1)"/><title>days visible: 0.0102</title></g>
+<text x="237.0" y="178" class="lab">0.010</text>
+<text x="200" y="207" class="tick" text-anchor="end">word count</text>
+<g class="pt"><rect x="210" y="195" width="10.7" height="18" rx="4" fill="var(--s1)"/><title>word count: 0.0052</title></g>
+<text x="226.7" y="208" class="lab">0.005</text>
+<text x="200" y="237" class="tick" text-anchor="end">clicks last 30d</text>
+<g class="pt"><rect x="210" y="225" width="7.6" height="18" rx="4" fill="var(--s1)"/><title>clicks last 30d: 0.0037</title></g>
+<text x="223.6" y="238" class="lab">0.004</text>
+<text x="210" y="282" class="axis">drop in average precision when the feature is shuffled</text>
+</svg>
+<figcaption><b>Recent momentum carries most of the signal.</b> Permutation importance on the sealed month: how much average precision drops when one feature is shuffled.</figcaption></figure>
+<p>Three findings matter beyond the model itself, each measured on the development snapshots against the site-relative label:</p>
+<figure><svg viewBox="0 0 600 320" role="img" aria-label="Decline rate by last-month momentum" class="chart">
+<line x1="58" x2="576" y1="272.0" y2="272.0" class="grid"/>
+<text x="50" y="276.0" class="tick" text-anchor="end">0%</text>
+<line x1="58" x2="576" y1="221.2" y2="221.2" class="grid"/>
+<text x="50" y="225.2" class="tick" text-anchor="end">20%</text>
+<line x1="58" x2="576" y1="170.4" y2="170.4" class="grid"/>
+<text x="50" y="174.4" class="tick" text-anchor="end">40%</text>
+<line x1="58" x2="576" y1="119.6" y2="119.6" class="grid"/>
+<text x="50" y="123.6" class="tick" text-anchor="end">60%</text>
+<line x1="58" x2="576" y1="68.8" y2="68.8" class="grid"/>
+<text x="50" y="72.8" class="tick" text-anchor="end">80%</text>
+<line x1="58" x2="576" y1="18.0" y2="18.0" class="grid"/>
+<text x="50" y="22.0" class="tick" text-anchor="end">100%</text>
+<g class="pt"><path d="M81.8,272.0 V82.8 Q81.8,78.8 85.8,78.8 H133.8 Q137.8,78.8 137.8,82.8 V272.0 Z" fill="var(--s1)"/><title>fell &gt;40%: 76% (n = 29,602)</title></g>
+<text x="109.8" y="72.8" class="lab" text-anchor="middle">76%</text>
+<text x="109.8" y="290" class="tick" text-anchor="middle">fell &gt;40%</text>
+<text x="109.8" y="304" class="tick muted" text-anchor="middle">n=29,602</text>
+<g class="pt"><path d="M185.4,272.0 V137.0 Q185.4,133.0 189.4,133.0 H237.4 Q241.4,133.0 241.4,137.0 V272.0 Z" fill="var(--s1)"/><title>fell 14-40%: 55% (n = 27,138)</title></g>
+<text x="213.4" y="127.0" class="lab" text-anchor="middle">55%</text>
+<text x="213.4" y="290" class="tick" text-anchor="middle">fell 14-40%</text>
+<text x="213.4" y="304" class="tick muted" text-anchor="middle">n=27,138</text>
+<g class="pt"><path d="M289.0,272.0 V173.6 Q289.0,169.6 293.0,169.6 H341.0 Q345.0,169.6 345.0,173.6 V272.0 Z" fill="var(--s1)"/><title>flat: 40% (n = 29,573)</title></g>
+<text x="317.0" y="163.6" class="lab" text-anchor="middle">40%</text>
+<text x="317.0" y="290" class="tick" text-anchor="middle">flat</text>
+<text x="317.0" y="304" class="tick muted" text-anchor="middle">n=29,573</text>
+<g class="pt"><path d="M392.6,272.0 V190.8 Q392.6,186.8 396.6,186.8 H444.6 Q448.6,186.8 448.6,190.8 V272.0 Z" fill="var(--s1)"/><title>rose 16-65%: 34% (n = 24,457)</title></g>
+<text x="420.6" y="180.8" class="lab" text-anchor="middle">34%</text>
+<text x="420.6" y="290" class="tick" text-anchor="middle">rose 16-65%</text>
+<text x="420.6" y="304" class="tick muted" text-anchor="middle">n=24,457</text>
+<g class="pt"><path d="M496.2,272.0 V187.3 Q496.2,183.3 500.2,183.3 H548.2 Q552.2,183.3 552.2,187.3 V272.0 Z" fill="var(--s1)"/><title>rose &gt;65%: 35% (n = 23,987)</title></g>
+<text x="524.2" y="177.3" class="lab" text-anchor="middle">35%</text>
+<text x="524.2" y="290" class="tick" text-anchor="middle">rose &gt;65%</text>
+<text x="524.2" y="304" class="tick muted" text-anchor="middle">n=23,987</text>
+<line x1="58" x2="576" y1="147.8" y2="147.8" class="ref"/>
+<text x="576" y="141.8" class="lab muted" text-anchor="end">average 49%</text>
+<text x="14" y="145" class="axis" text-anchor="middle" transform="rotate(-90 14 145)">fell behind own site</text>
+</svg>
+<figcaption><b>Sliding pages keep sliding.</b> Pages that lost more than 40% last month fell behind their site far more often than pages that grew.</figcaption></figure>
+<figure><svg viewBox="0 0 600 320" role="img" aria-label="Decline rate by one-day spike share" class="chart">
+<line x1="58" x2="576" y1="272.0" y2="272.0" class="grid"/>
+<text x="50" y="276.0" class="tick" text-anchor="end">0%</text>
+<line x1="58" x2="576" y1="221.2" y2="221.2" class="grid"/>
+<text x="50" y="225.2" class="tick" text-anchor="end">20%</text>
+<line x1="58" x2="576" y1="170.4" y2="170.4" class="grid"/>
+<text x="50" y="174.4" class="tick" text-anchor="end">40%</text>
+<line x1="58" x2="576" y1="119.6" y2="119.6" class="grid"/>
+<text x="50" y="123.6" class="tick" text-anchor="end">60%</text>
+<line x1="58" x2="576" y1="68.8" y2="68.8" class="grid"/>
+<text x="50" y="72.8" class="tick" text-anchor="end">80%</text>
+<line x1="58" x2="576" y1="18.0" y2="18.0" class="grid"/>
+<text x="50" y="22.0" class="tick" text-anchor="end">100%</text>
+<g class="pt"><path d="M94.8,272.0 V161.8 Q94.8,157.8 98.8,157.8 H146.8 Q150.8,157.8 150.8,161.8 V272.0 Z" fill="var(--s1)"/><title>&lt;10%: 45% (n = 102,233)</title></g>
+<text x="122.8" y="151.8" class="lab" text-anchor="middle">45%</text>
+<text x="122.8" y="290" class="tick" text-anchor="middle">&lt;10%</text>
+<text x="122.8" y="304" class="tick muted" text-anchor="middle">n=102,233</text>
+<g class="pt"><path d="M224.2,272.0 V124.5 Q224.2,120.5 228.2,120.5 H276.2 Q280.2,120.5 280.2,124.5 V272.0 Z" fill="var(--s1)"/><title>10-25%: 60% (n = 29,570)</title></g>
+<text x="252.2" y="114.5" class="lab" text-anchor="middle">60%</text>
+<text x="252.2" y="290" class="tick" text-anchor="middle">10-25%</text>
+<text x="252.2" y="304" class="tick muted" text-anchor="middle">n=29,570</text>
+<g class="pt"><path d="M353.8,272.0 V86.9 Q353.8,82.9 357.8,82.9 H405.8 Q409.8,82.9 409.8,86.9 V272.0 Z" fill="var(--s1)"/><title>25-50%: 74% (n = 2,488)</title></g>
+<text x="381.8" y="76.9" class="lab" text-anchor="middle">74%</text>
+<text x="381.8" y="290" class="tick" text-anchor="middle">25-50%</text>
+<text x="381.8" y="304" class="tick muted" text-anchor="middle">n=2,488</text>
+<g class="pt"><path d="M483.2,272.0 V55.2 Q483.2,51.2 487.2,51.2 H535.2 Q539.2,51.2 539.2,55.2 V272.0 Z" fill="var(--s1)"/><title>&gt;50%: 87% (n = 466)</title></g>
+<text x="511.2" y="45.2" class="lab" text-anchor="middle">87%</text>
+<text x="511.2" y="290" class="tick" text-anchor="middle">&gt;50%</text>
+<text x="511.2" y="304" class="tick muted" text-anchor="middle">n=466</text>
+<line x1="58" x2="576" y1="147.8" y2="147.8" class="ref"/>
+<text x="576" y="141.8" class="lab muted" text-anchor="end">average 49%</text>
+<text x="14" y="145" class="axis" text-anchor="middle" transform="rotate(-90 14 145)">fell behind own site</text>
+</svg>
+<figcaption><b>One-day spikes revert.</b> When a single day carries a big share of the month, the next month usually falls back, which is a reason to check before editing anything.</figcaption></figure>
+<figure><svg viewBox="0 0 600 320" role="img" aria-label="Decline rate by page age" class="chart">
+<line x1="58" x2="576" y1="272.0" y2="272.0" class="grid"/>
+<text x="50" y="276.0" class="tick" text-anchor="end">0%</text>
+<line x1="58" x2="576" y1="221.2" y2="221.2" class="grid"/>
+<text x="50" y="225.2" class="tick" text-anchor="end">20%</text>
+<line x1="58" x2="576" y1="170.4" y2="170.4" class="grid"/>
+<text x="50" y="174.4" class="tick" text-anchor="end">40%</text>
+<line x1="58" x2="576" y1="119.6" y2="119.6" class="grid"/>
+<text x="50" y="123.6" class="tick" text-anchor="end">60%</text>
+<line x1="58" x2="576" y1="68.8" y2="68.8" class="grid"/>
+<text x="50" y="72.8" class="tick" text-anchor="end">80%</text>
+<line x1="58" x2="576" y1="18.0" y2="18.0" class="grid"/>
+<text x="50" y="22.0" class="tick" text-anchor="end">100%</text>
+<g class="pt"><path d="M94.8,272.0 V139.7 Q94.8,135.7 98.8,135.7 H146.8 Q150.8,135.7 150.8,139.7 V272.0 Z" fill="var(--s1)"/><title>90-180: 54% (n = 27,940)</title></g>
+<text x="122.8" y="129.7" class="lab" text-anchor="middle">54%</text>
+<text x="122.8" y="290" class="tick" text-anchor="middle">90-180</text>
+<text x="122.8" y="304" class="tick muted" text-anchor="middle">n=27,940</text>
+<g class="pt"><path d="M224.2,272.0 V144.7 Q224.2,140.7 228.2,140.7 H276.2 Q280.2,140.7 280.2,144.7 V272.0 Z" fill="var(--s1)"/><title>181-270: 52% (n = 48,747)</title></g>
+<text x="252.2" y="134.7" class="lab" text-anchor="middle">52%</text>
+<text x="252.2" y="290" class="tick" text-anchor="middle">181-270</text>
+<text x="252.2" y="304" class="tick muted" text-anchor="middle">n=48,747</text>
+<g class="pt"><path d="M353.8,272.0 V147.0 Q353.8,143.0 357.8,143.0 H405.8 Q409.8,143.0 409.8,147.0 V272.0 Z" fill="var(--s1)"/><title>271-365: 51% (n = 27,164)</title></g>
+<text x="381.8" y="137.0" class="lab" text-anchor="middle">51%</text>
+<text x="381.8" y="290" class="tick" text-anchor="middle">271-365</text>
+<text x="381.8" y="304" class="tick muted" text-anchor="middle">n=27,164</text>
+<g class="pt"><path d="M483.2,272.0 V178.4 Q483.2,174.4 487.2,174.4 H535.2 Q539.2,174.4 539.2,178.4 V272.0 Z" fill="var(--s1)"/><title>365+: 38% (n = 30,906)</title></g>
+<text x="511.2" y="168.4" class="lab" text-anchor="middle">38%</text>
+<text x="511.2" y="290" class="tick" text-anchor="middle">365+</text>
+<text x="511.2" y="304" class="tick muted" text-anchor="middle">n=30,906</text>
+<line x1="58" x2="576" y1="147.8" y2="147.8" class="ref"/>
+<text x="576" y="141.8" class="lab muted" text-anchor="end">average 49%</text>
+<text x="14" y="145" class="axis" text-anchor="middle" transform="rotate(-90 14 145)">fell behind own site</text>
+</svg>
+<figcaption><b>"Old content decays" points the other way here.</b> Measured against their own site, pages over a year old that still earn 200+ impressions were the steadiest group.</figcaption></figure>
+<p>The rule's "page-one and older than 180 days" flag, a common protect-your-assets heuristic, showed no difference at all: about 49% for both groups.</p>
+
+<h2>5 · Limitations</h2>
+<ul>
+<li><strong>Observational, not causal.</strong> Nothing here shows that reviewing or refreshing a flagged page changes what happens to it. That would need a controlled before/after design.</li>
+<li><strong>One portfolio, one season.</strong> Between 25 and 37 clients with enough history, March to June 2026. Other sites, or a big search-wide change, may behave differently.</li>
+<li><strong>Site-relative by design.</strong> A page that falls exactly with its site counts as "fine". Site-wide drops need a site-level response, not a page queue.</li>
+<li><strong>A ranking, not a probability.</strong> The scores order pages well but aren't calibrated (mean score 0.47 against an actual rate of 0.52 on June), so the confidence tiers are percentiles.</li>
+<li><strong>Uneven across clients.</strong> Per-client AUC on June runs from 0.54 to 0.86 (median 0.71). The queue beats chance for every client, but helps some much more than others.</li>
+<li><strong>Not Google's algorithm.</strong> These are associations in one dataset, not ranking factors.</li>
+</ul>
+
+<h2>6 · Ranked recommendations</h2>
+<p>The live queue scores 87664 pages across 39 sites for July 2026. Across every site's top 10 the suggested actions split as: review 166, review now 102, monitor 92.</p>
+<ol>
+<li><strong>Each site works down its own top 10, in order,</strong> and reads the reason codes first.</li>
+<li><strong>One-day spike: monitor before editing.</strong> They usually do fall next month, but that's the spike unwinding, not the page failing.</li>
+<li><strong>Impressions and rank both slipping: review now.</strong> Compare with what currently ranks for the main query, then refresh content and internal links.</li>
+<li><strong>Don't choose refresh targets by age alone.</strong> Older pages with real traffic were the steadier ones.</li>
+<li><strong>Never auto-delete, redirect or rewrite because a score is high.</strong> A person checks for spikes, seasonality and consolidation into a sibling page first.</li>
+</ol>
+
+<h2>7 · Reproducibility</h2>
+<p>Everything reruns from the repo: <a href="https://github.com/Fasiuu/FLYRANK_TASK1">github.com/Fasiuu/FLYRANK_TASK1</a>. The feature and label builder is <a href="https://github.com/Fasiuu/FLYRANK_TASK1/blob/main/work/scripts/flyrank_features.py"><code>work/scripts/flyrank_features.py</code></a>. The weekly notebooks are <a href="https://github.com/Fasiuu/FLYRANK_TASK1/blob/main/work/notebooks/w02_ml_task_framing.ipynb">framing</a>, <a href="https://github.com/Fasiuu/FLYRANK_TASK1/blob/main/work/notebooks/w03_data_contract.ipynb">data contract</a>, <a href="https://github.com/Fasiuu/FLYRANK_TASK1/blob/main/work/notebooks/w04_baseline_score.ipynb">baseline</a>, <a href="https://github.com/Fasiuu/FLYRANK_TASK1/blob/main/work/notebooks/w05_model.ipynb">model</a>, <a href="https://github.com/Fasiuu/FLYRANK_TASK1/blob/main/work/notebooks/w06_validation_audit.ipynb">validation audit</a>, <a href="https://github.com/Fasiuu/FLYRANK_TASK1/blob/main/work/notebooks/w07_action_playbook.ipynb">playbook</a> and <a href="https://github.com/Fasiuu/FLYRANK_TASK1/blob/main/work/notebooks/capstone.ipynb">capstone</a>. Every number on this page is read from <code>work/outputs/capstone_metrics.json</code> and <code>work/outputs/sealed_metrics.json</code>, which those notebooks write. Seed 42. Access to the warehouse needs a free Hugging Face account and a read token.</p>
+
+<h2>8 · Acknowledgments &amp; data credit</h2>
+<p>Built on the FlyRank ML Internship dataset (<code>FlyRank/internship-warehouse</code>), a pseudonymised release of real search-performance data provided by <a href="https://flyrank.ai">FlyRank</a>. Thanks to the FlyRank team for the data, the starter pipeline and the March 2026 research report this work questions in places.</p>
+
+<footer>Observed, decision-support results on one pseudonymised portfolio. No client, domain, URL or query appears on this page.</footer>
+</div>
+<script>
+(function(){var b=document.getElementById('t'),r=document.documentElement;
+b.onclick=function(){var dark=r.getAttribute('data-theme')==='dark'||(!r.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme: dark)').matches);
+r.setAttribute('data-theme',dark?'light':'dark');};})();
+</script>
+</body>
+</html>
