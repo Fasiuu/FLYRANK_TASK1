@@ -1,0 +1,57 @@
+{
+  "train_date": "2026-03-31",
+  "test_date": "2026-04-30",
+  "validation": "client-grouped (4 hashed folds) + time-forward",
+  "frozen_choice": "hgb",
+  "models": {
+    "baseline_rule": {
+      "base_rate": 0.4847,
+      "auc": 0.6139,
+      "ap": 0.5848,
+      "p@20": 0.9,
+      "p@50": 0.86,
+      "p@100": 0.89,
+      "p@500": 0.882,
+      "client_p@10": 0.805,
+      "client_base": 0.498,
+      "clients": 19
+    },
+    "logreg": {
+      "base_rate": 0.4847,
+      "auc": 0.6961,
+      "ap": 0.6851,
+      "p@20": 0.85,
+      "p@50": 0.9,
+      "p@100": 0.89,
+      "p@500": 0.902,
+      "client_p@10": 0.905,
+      "client_base": 0.498,
+      "clients": 19
+    },
+    "hgb": {
+      "base_rate": 0.4847,
+      "auc": 0.732,
+      "ap": 0.7203,
+      "p@20": 0.9,
+      "p@50": 0.96,
+      "p@100": 0.97,
+      "p@500": 0.928,
+      "client_p@10": 0.863,
+      "client_base": 0.498,
+      "clients": 19
+    },
+    "rf": {
+      "base_rate": 0.4847,
+      "auc": 0.7362,
+      "ap": 0.7257,
+      "p@20": 0.9,
+      "p@50": 0.92,
+      "p@100": 0.91,
+      "p@500": 0.922,
+      "client_p@10": 0.858,
+      "client_base": 0.498,
+      "clients": 19
+    }
+  },
+  "source": "work/notebooks/w05_model.ipynb"
+}

@@ -1,0 +1,76 @@
+{
+  "frame": {
+    "train_dates": [
+      "2026-03-31",
+      "2026-04-30"
+    ],
+    "test_date": "2026-05-31",
+    "label_month": "2026-06",
+    "n_test": 85178,
+    "n_test_clients": 37,
+    "folds": 4,
+    "seed": 42,
+    "model": "hgb"
+  },
+  "sealed": {
+    "baseline_rule": {
+      "base_rate": 0.5186,
+      "auc": 0.6016,
+      "ap": 0.6054,
+      "p@20": 0.8,
+      "p@50": 0.86,
+      "p@100": 0.71,
+      "p@500": 0.826,
+      "client_p@10": 0.746,
+      "client_base": 0.517,
+      "clients": 26
+    },
+    "hgb": {
+      "base_rate": 0.5186,
+      "auc": 0.7038,
+      "ap": 0.7151,
+      "p@20": 1.0,
+      "p@50": 0.94,
+      "p@100": 0.97,
+      "p@500": 0.964,
+      "client_p@10": 0.885,
+      "client_base": 0.517,
+      "clients": 26
+    },
+    "logreg": {
+      "base_rate": 0.5186,
+      "auc": 0.701,
+      "ap": 0.7099,
+      "p@20": 1.0,
+      "p@50": 0.96,
+      "p@100": 0.95,
+      "p@500": 0.952,
+      "client_p@10": 0.908,
+      "client_base": 0.517,
+      "clients": 26
+    }
+  },
+  "before_after": {
+    "random row split (before)": {
+      "base_rate": 0.5001,
+      "auc": 0.7977,
+      "ap": 0.7977,
+      "p@20": 1.0,
+      "p@50": 1.0,
+      "p@100": 1.0,
+      "p@500": 0.994
+    },
+    "client-grouped + future month (after)": {
+      "base_rate": 0.5186,
+      "auc": 0.7038,
+      "ap": 0.7151,
+      "p@20": 1.0,
+      "p@50": 0.94,
+      "p@100": 0.97,
+      "p@500": 0.964,
+      "client_p@10": 0.885,
+      "client_base": 0.517,
+      "clients": 26
+    }
+  }
+}
